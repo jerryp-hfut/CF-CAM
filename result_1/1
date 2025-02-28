@@ -1,0 +1,92 @@
+import numpy as np
+import scipy.stats
+from sklearn.metrics import auc
+
+def compute_insertion(cam, original_probs, model, image, steps=50):
+    """ 计算 Insertion（插入）AUC """
+    sorted_indices = np.argsort(cam.flatten())[::-1]  # 按重要性排序
+    inserted = np.zeros_like(image)
+    probs = []
+
+    for i in range(0, len(sorted_indices), len(sorted_indices)//steps):
+        inserted.flat[sorted_indices[:i]] = image.flat[sorted_indices[:i]]
+        new_prob = model.predict(inserted[np.newaxis, ...])[0]  # 计算新概率
+        probs.append(new_prob)
+
+    x = np.linspace(0, 1, len(probs))  # 归一化步长
+    return auc(x, probs)
+
+def compute_deletion(cam, original_probs, model, image, steps=50):
+    """ 计算 Deletion（删除）AUC """
+    sorted_indices = np.argsort(cam.flatten())[::-1]
+    deleted = image.copy()
+    probs = []
+
+    for i in range(0, len(sorted_indices), len(sorted_indices)//steps):
+        deleted.flat[sorted_indices[:i]] = 0  # 逐步删除重要像素
+        new_prob = model.predict(deleted[np.newaxis, ...])[0]
+        probs.append(new_prob)
+
+    x = np.linspace(0, 1, len(probs))
+    return auc(x, probs)
+
+def compute_complexity(cam):
+    """ 计算 Complexity（复杂度）- L1范数 """
+    return np.linalg.norm(cam, ord=1)
+
+def compute_coherency(cam1, cam2):
+    """ 计算 Coherency（一致性）- 皮尔逊相关系数 """
+    return scipy.stats.pearsonr(cam1.flatten(), cam2.flatten())[0]
+
+def compute_average_drop(yc, oc):
+    """ 计算 Average Drop（平均下降） """
+    return max(0, yc - oc) / yc * 100
+
+def compute_average_increase(yc, oc):
+    """ 计算 Average Increase（平均增加） """
+    return int(yc < oc) * 100
+
+def compute_adcc(average_drop, complexity, coherency):
+    """ 计算 ADCC（综合指标） """
+    return 3 * (1 / (1 - average_drop) + 1 / (1 - complexity) + 1 / coherency)
+
+def evaluate_cam_metrics(cam, original_probs, model, image, yc, oc, cam_ref=None):
+    """
+    计算所有指标：
+    - Insertion
+    - Deletion
+    - Complexity
+    - Coherency (需要一个参考CAM)
+    - Average Drop
+    - Average Increase
+    - ADCC
+    """
+    insertion_score = compute_insertion(cam, original_probs, model, image)
+    deletion_score = compute_deletion(cam, original_probs, model, image)
+    complexity_score = compute_complexity(cam)
+    
+    coherency_score = compute_coherency(cam, cam_ref) if cam_ref is not None else None
+    average_drop_score = compute_average_drop(yc, oc)
+    average_increase_score = compute_average_increase(yc, oc)
+    
+    adcc_score = compute_adcc(average_drop_score, complexity_score, coherency_score) if coherency_score is not None else None
+
+    return {
+        "Insertion": insertion_score,
+        "Deletion": deletion_score,
+        "Complexity": complexity_score,
+        "Coherency": coherency_score,
+        "Average Drop": average_drop_score,
+        "Average Increase": average_increase_score,
+        "ADCC": adcc_score
+    }
+
+# 使用示例：
+# model = 加载你的模型
+# image = 需要解释的输入图像
+# cam = 计算出的CAM热力图
+# cam_ref = 另一个用于对比一致性的CAM热力图
+# yc = 原始图像的目标类别置信度
+# oc = 仅使用解释图像的目标类别置信度
+# metrics = evaluate_cam_metrics(cam, original_probs, model, image, yc, oc, cam_ref)
+# print(metrics)

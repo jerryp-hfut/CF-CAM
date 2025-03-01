@@ -1,0 +1,77 @@
+import torch
+import numpy as np
+import torchvision.transforms as transforms
+from PIL import Image
+import torch.nn.functional as F
+
+class ScoreCAMGenerator:
+    """Score-weighted Class Activation Map generator"""
+    def __init__(self, model, target_layer):
+        self.model = model
+        self.target_layer = target_layer
+        self.feature_maps = None
+        
+        # Register hook
+        self._register_hooks()
+        
+    def _register_hooks(self):
+        """Register forward hook to capture feature maps"""
+        def forward_hook(module, input, output):
+            self.feature_maps = output
+        
+        # Get target layer
+        for name, module in self.model.named_modules():
+            if name == self.target_layer:
+                module.register_forward_hook(forward_hook)
+                break
+    
+    def _get_score(self, input_tensor, feature_map):
+        """Compute the class activation score for a given feature map"""
+        with torch.no_grad():
+            modified_input = input_tensor * feature_map
+            logits = self.model(modified_input)
+        return F.softmax(logits, dim=1)
+    
+    def generate_scorecam(self, img_path, class_idx=None):
+        """Generate Score-CAM for the given image and class"""
+        # Load and preprocess image
+        img = Image.open(img_path).convert('RGB')
+        preprocess = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+        input_tensor = preprocess(img).unsqueeze(0)
+        
+        # Forward pass
+        self.model.eval()
+        logits = self.model(input_tensor)
+        
+        # If class index not specified, use predicted class
+        if class_idx is None:
+            class_idx = logits.argmax(dim=1).item()
+        
+        # Get the feature maps
+        feature_maps = self.feature_maps.detach()
+        num_channels = feature_maps.shape[1]
+        
+        # Compute score-based weights
+        weights = []
+        for i in range(num_channels):
+            single_map = feature_maps[:, i:i+1, :, :]
+            score = self._get_score(input_tensor, single_map)[0, class_idx].item()
+            weights.append(score)
+        
+        weights = torch.tensor(weights).view(1, -1, 1, 1)
+        
+        # Generate Score-CAM
+        scorecam = torch.sum(feature_maps * weights, dim=1).squeeze()
+        scorecam = scorecam.detach().cpu().numpy()
+        
+        # ReLU and normalize
+        scorecam = np.maximum(scorecam, 0)
+        if np.max(scorecam) > 0:
+            scorecam = scorecam / np.max(scorecam)
+        
+        return scorecam, class_idx

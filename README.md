@@ -1,4 +1,4 @@
-# ClusteredFilteredGradCAM
+# CFCAM
 
 ![Quantitative Comparison results](./teaser/comparison1.png)
 
@@ -52,7 +52,7 @@ The following outlines the complete steps of `ClusteredFilteredGradCAM` to gener
     - Extract the gradients of that cluster (`cluster_gradients`).
     - Compute the mean gradient within the cluster (`mean_cluster_gradient`).
     - Adaptively estimate Guided Filter parameters:
-      - Radius `r`: One-fourth of the feature map's spatial scale (\(\sqrt{H \cdot W}\)).
+      - Radius `r`: One-fourth of the feature map's spatial scale.
       - Regularization `eps`: 10% of the gradient variance.
     - Apply Guided Filter to produce a smoothed gradient (`filtered_mean_gradient`).
     - Assign the filtered gradient to all channels in the cluster.

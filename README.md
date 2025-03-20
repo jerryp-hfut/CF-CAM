@@ -23,8 +23,9 @@ pip install -r requirements.txt
 Download the fine-tuned ResNet50 model from Google Drive:
 
 [Pretrained Model Weights](https://drive.google.com/file/d/1_Vq50KGmSp0PNyY-a_nmQjF2eIXHqUht/view?usp=sharing)
+[Shenzhen Hospital X-Ray Set](https://github.com/openmedlab/Awesome-Medical-Dataset/blob/main/resources/Shenzhen_chest_X-ray.md)
 
-Place the downloaded weight file in the **root directory** of this project.
+Place the downloaded weight file in the **root directory** of this project. For the dataset, place the "CXR_png" folder in the **root directory**.
 
 ### 3. Prepare Input Images
 Put test images inside the `testimgs/` folder. Ensure that images are in common formats (e.g., `.jpg`, `.png`).

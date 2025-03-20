@@ -1,0 +1,9 @@
+opencv-contrib-python==4.11.0.86
+opencv-python==4.11.0.86
+numpy==1.26.4
+torch==2.1.2+cu118
+torchvision==0.16.2+cu118
+pillow==10.3.0
+matplotlib==3.9.0
+scikit-learn==1.6.1
+scikit-image==0.25.0

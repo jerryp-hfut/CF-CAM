@@ -1,82 +1,86 @@
-# CFCAM
+# CF-CAM: Cluster Filter Class Activation Mapping
+---
+![Original](./teaser/comparison1.svg)
 
-![Quantitative Comparison results](./teaser/comparison1.png)
+CF-CAM (Cluster Filter Class Activation Map) is an enhanced Class Activation Mapping (CAM) technique that improves the interpretability of deep neural networks by mitigating gradient perturbation and stabilizing feature maps. It extends Grad-CAM by introducing **density-aware feature clustering (DBSCAN)** and **cluster-conditioned gradient filtering (bilateral filtering)**, resulting in more precise and robust heatmaps.
 
-`ClusteredFilteredGradCAM` is an enhanced Class Activation Mapping (CAM) method designed to produce more precise and smoother heatmaps for interpreting deep learning model decisions. Building upon the foundation of Grad-CAM, it incorporates DBSCAN clustering and Guided Filter to refine feature map and gradient processing, thereby improving the quality of CAM visualizations.
-
-## Workflow for Generating CAM Heatmaps
-
-The following outlines the complete steps of `ClusteredFilteredGradCAM` to generate a heatmap:
-
-### 1. **Model Initialization and Hook Registration**
-- **Input**: A pretrained deep learning model (e.g., ResNet50) and a target layer (typically the last convolutional layer, such as `layer3[-1]`).
-- **Process**: 
-  - Register a forward hook on the target layer to capture feature maps (`feature_maps`).
-  - Register a backward hook on the target layer to capture gradients (`gradients`).
-- **Purpose**: Collect activation and gradient information from the target layer for subsequent computations.
-
-### 2. **Image Preprocessing**
-- **Input**: Image path (e.g., `../input/zebra.jpg`).
-- **Process**: 
-  - Resize the image to 224x224.
-  - Convert it to a tensor and apply ImageNet normalization (mean `[0.485, 0.456, 0.406]`, std `[0.229, 0.224, 0.225]`).
-- **Output**: Input tensor (`input_tensor`) and the original image (for later superimposition).
-
-### 3. **Forward Pass and Class Prediction**
-- **Process**: 
-  - Pass the input tensor through the model to obtain output logits.
-  - If no target class (`class_idx`) is specified, select the class with the highest score.
-- **Output**: Target class index (e.g., predicted class ID).
-
-### 4. **Backward Pass**
-- **Process**: 
-  - Create a one-hot vector with a 1 at the target class position.
-  - Perform backpropagation to compute gradients of the target layer with respect to the target class.
-- **Output**: Feature maps (`feature_maps`) and gradients (`gradients`), both with shape `(C, H, W)`.
-
-### 5. **Feature Map Clustering**
-- **Method**: Use DBSCAN (Density-Based Spatial Clustering of Applications with Noise) to group feature map channels.
-- **Process**: 
-  - Flatten feature maps into a `(C, H*W)` matrix.
-  - Compute the Euclidean distance matrix between channels.
-  - Adaptively estimate DBSCAN parameters:
-    - `eps`: 25th percentile of the distance matrix.
-    - `min_samples`: 5% of the number of channels (minimum of 2).
-  - Perform DBSCAN clustering to obtain cluster labels (`cluster_labels`) and the number of clusters (`n_clusters`).
-- **Purpose**: Group semantically similar channels for differentiated processing.
-
-### 6. **Gradient Filtering**
-- **Method**: Apply Guided Filter to smooth gradients.
-- **Process**: 
-  - For each cluster:
-    - Extract the gradients of that cluster (`cluster_gradients`).
-    - Compute the mean gradient within the cluster (`mean_cluster_gradient`).
-    - Adaptively estimate Guided Filter parameters:
-      - Radius `r`: One-fourth of the feature map's spatial scale.
-      - Regularization `eps`: 10% of the gradient variance.
-    - Apply Guided Filter to produce a smoothed gradient (`filtered_mean_gradient`).
-    - Assign the filtered gradient to all channels in the cluster.
-- **Output**: Smoothed gradient tensor (`filtered_gradients`).
-- **Purpose**: Reduce noise while preserving edges, enhancing the smoothness and interpretability of the CAM.
-
-### 7. **Weight Calculation and CAM Generation**
-- **Process**: 
-  - Perform global average pooling on the smoothed gradients to obtain per-channel weights (`weights`).
-  - Compute a weighted sum of the feature maps using these weights to generate the initial CAM.
-  - Apply ReLU (`torch.clamp(min=0)`) to remove negative values.
-  - Normalize to the range [0, 1] (if the maximum value is greater than 0).
-- **Output**: CAM heatmap (`cam`), with shape `(H, W)`.
-
-### 8. **Heatmap Visualization**
-- **Process**: 
-  - Upsample the CAM to the original image size (e.g., 224x224).
-  - Convert the CAM to a JET colormap heatmap using `cv2.applyColorMap`.
-  - Superimpose the heatmap (40% weight) onto the original image (60% weight).
-- **Output**: Superimposed heatmap (`superimposed_heatmap`), saved as a PNG file.
+## Key Features
+- **Density-Aware Channel Clustering**: Uses DBSCAN to group semantically similar feature channels while eliminating noise-prone activations.
+- **Cluster-Conditioned Gradient Filtering**: Applies bilateral filtering within clusters to refine gradient signals and enhance spatial coherence.
+- **Hierarchical Importance Weighting**: Balances discriminative feature retention and noise suppression for faithful interpretability.
 
 ---
 
-## Code Overview
-- **File**: `cfcam.py`
-- **Dependencies**: PyTorch, Torchvision, NumPy, Matplotlib, OpenCV, scikit-learn.
-- **Fine-tuned ResNet50 weight**: `https://drive.google.com/file/d/1_Vq50KGmSp0PNyY-a_nmQjF2eIXHqUht/view?usp=sharing`
+## Installation & Setup
+
+### 1. Install Dependencies
+Ensure you have Python installed (>=3.8). Then, install the required libraries:
+```sh
+pip install -r requirements.txt
+```
+
+### 2. Download Pretrained Model Weights
+Download the fine-tuned ResNet50 model from Google Drive:
+
+[Pretrained Model Weights](https://drive.google.com/file/d/1_Vq50KGmSp0PNyY-a_nmQjF2eIXHqUht/view?usp=sharing)
+
+Place the downloaded weight file in the **root directory** of this project.
+
+### 3. Prepare Input Images
+Put test images inside the `testimgs/` folder. Ensure that images are in common formats (e.g., `.jpg`, `.png`).
+
+### 4. Run CF-CAM
+Execute the following command to generate CAM heatmaps:
+```sh
+python CF-CAM.py
+```
+
+The generated heatmaps will be saved in the `output/` directory.
+
+---
+
+## CF-CAM Workflow
+
+### 1. **Model Initialization & Hook Registration**
+- Loads a pre-trained model (e.g., ResNet50) and selects a target convolutional layer (e.g., `layer4[-1]`).
+- Registers forward and backward hooks to capture **feature maps** and **gradients**.
+
+### 2. **Image Preprocessing**
+- Loads an input image and resizes it to **224×224**.
+- Converts the image to a **tensor** and applies ImageNet normalization:
+  ```python
+  mean = [0.485, 0.456, 0.406]
+  std = [0.229, 0.224, 0.225]
+  ```
+
+### 3. **Forward Pass & Class Prediction**
+- Runs the model on the input image.
+- If no target class is specified, selects the **top predicted class** automatically.
+
+### 4. **Backward Pass**
+- Computes gradients of the target class with respect to the feature maps of the selected layer.
+
+### 5. **Feature Map Clustering (DBSCAN)**
+- Flattens feature maps into a `(C, H*W)` matrix.
+- Computes the **Euclidean distance matrix** between feature channels.
+- Uses **adaptive DBSCAN clustering**:
+  - `eps = 25th percentile of distance matrix`
+  - `min_samples = max(2, 5% of total channels)`
+- Clusters semantically related channels and removes outliers (noise channels).
+
+### 6. **Gradient Filtering (Bilateral Filter)**
+- For each cluster:
+  - Computes the **mean gradient** of the channels.
+  - Applies **bilateral filtering** to preserve spatial coherence.
+  - Uses filtered gradients to enhance interpretability.
+
+### 7. **Weight Calculation & CAM Generation**
+- Performs **global average pooling** on filtered gradients.
+- Computes **weighted sum** of feature maps.
+- Applies **ReLU activation** (`torch.clamp(min=0)`) and normalizes the heatmap.
+
+### 8. **Heatmap Visualization & Superimposition**
+- Upsamples the CAM heatmap to match the original image size.
+- Converts CAM to a heatmap using OpenCV.
+- Superimposes the heatmap onto the input image (`40% heatmap + 60% original`).
+- Saves the final visualization to `output/`.

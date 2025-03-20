@@ -1,6 +1,6 @@
 import os
-import numpy as np
 import cv2
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -248,7 +248,7 @@ def main() -> None:
     print(f"Device: {device}")
 
     test_folder = "testimgs"
-    output_folder = "cfcam_heatmaps"
+    output_folder = "output"
     model_path = "best_model.pth"
 
     if not os.path.exists(test_folder):

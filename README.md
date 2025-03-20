@@ -77,5 +77,6 @@ The following outlines the complete steps of `ClusteredFilteredGradCAM` to gener
 ---
 
 ## Code Overview
-- **File**: `ver6.py`
+- **File**: `cfcam.py`
 - **Dependencies**: PyTorch, Torchvision, NumPy, Matplotlib, OpenCV, scikit-learn.
+- **Fine-tuned ResNet50 weight**: `https://drive.google.com/file/d/1_Vq50KGmSp0PNyY-a_nmQjF2eIXHqUht/view?usp=sharing`
